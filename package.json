@@ -1,0 +1,24 @@
+{
+  "name": "arc-mainnet-bridge-monitor",
+  "version": "1.0.0",
+  "description": "Arc 主网上线与官方桥接秒级监控脚本，支持飞书机器人卡片告警和 PM2 常驻运行。",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "check": "node --check src/index.js && node --check src/config.js && node --check src/alerts/feishu.js && node --check src/monitors/bridgeSupportMonitor.js && node --check src/monitors/contractAddressMonitor.js && node --check src/monitors/docsMonitor.js && node --check src/monitors/noxaMonitor.js && node --check src/monitors/npmPackageMonitor.js && node --check src/monitors/rpcProbeMonitor.js"
+  },
+  "keywords": [
+    "arc",
+    "circle",
+    "bridge",
+    "cctp",
+    "feishu",
+    "monitor"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "dotenv": "^17.2.3"
+  }
+}
