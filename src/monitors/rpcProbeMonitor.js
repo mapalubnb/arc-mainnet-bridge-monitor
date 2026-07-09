@@ -1,7 +1,6 @@
 import { config } from "../config.js";
+import { formatError, logger } from "../logger.js";
 import { rpcCall } from "../utils/http.js";
-import { sha256 } from "../utils/hash.js";
-import { logger } from "../logger.js";
 
 const normalizeChainId = (chainId) => {
   if (typeof chainId === "number") return String(chainId);
@@ -11,9 +10,15 @@ const normalizeChainId = (chainId) => {
 
 export async function rpcProbeMonitor({ state, alert }) {
   const urls = Array.from(new Set([...config.knownRpcUrls, ...config.extraRpcUrls, ...state.getRpcUrls()]));
+  logger.debug("开始执行 RPC 探测", {
+    rpcCount: urls.length,
+    testnetChainId: config.arcTestnetChainId,
+    urls
+  });
 
   for (const url of urls) {
     try {
+      logger.debug("开始探测 RPC 节点", { rpcUrl: url });
       const [chainIdRaw, blockRaw] = await Promise.all([
         rpcCall(url, "eth_chainId"),
         rpcCall(url, "eth_blockNumber")
@@ -26,11 +31,26 @@ export async function rpcProbeMonitor({ state, alert }) {
       const isTestnet = chainId === config.arcTestnetChainId;
       const isGrowing = Number.isFinite(previous.blockNumber) && blockNumber > previous.blockNumber;
 
+      logger.debug("RPC 探测成功", {
+        rpcUrl: url,
+        chainId,
+        blockNumber,
+        previousBlockNumber: previous.blockNumber ?? null,
+        isTestnet,
+        isGrowing
+      });
+
       if (!isTestnet && Number.isFinite(blockNumber) && state.shouldAlert(`rpc-non-testnet:${url}:${chainId}`)) {
+        logger.error("发现非测试网 Chain ID，疑似 Arc 主网 RPC", {
+          rpcUrl: url,
+          chainId,
+          blockNumber,
+          isGrowing
+        });
         await alert.send({
           severity: "P0",
           title: "发现疑似 Arc 主网 RPC",
-          source: "RPC 探测",
+          source: "RPC 探测 RpcProbe",
           matched: `RPC: ${url}\nChain ID: ${chainId}\n区块高度: ${blockNumber}\n区块增长: ${isGrowing ? "是" : "待确认"}`,
           action: "立即用官方文档、浏览器和桥支持列表交叉确认；确认后先小额 USDC 跨链。",
           url
@@ -38,17 +58,26 @@ export async function rpcProbeMonitor({ state, alert }) {
       }
 
       if (!isTestnet && isGrowing && state.shouldAlert(`rpc-growing:${url}:${chainId}:${blockNumber}`)) {
+        logger.error("疑似 Arc 主网 RPC 区块正在增长", {
+          rpcUrl: url,
+          chainId,
+          previousBlockNumber: previous.blockNumber,
+          currentBlockNumber: blockNumber
+        });
         await alert.send({
           severity: "P0",
           title: "疑似 Arc 主网 RPC 区块正在增长",
-          source: "RPC 探测",
+          source: "RPC 探测 RpcProbe",
           matched: `RPC: ${url}\nChain ID: ${chainId}\n上一高度: ${previous.blockNumber}\n当前高度: ${blockNumber}`,
           action: "这是最高优先级信号。马上核验官方桥是否可用，并执行小额桥接测试。",
           url
         });
       }
     } catch (error) {
-      logger.debug("RPC 探测失败", { url, error: error.message });
+      logger.debug("RPC 节点探测失败，等待下一轮重试", {
+        rpcUrl: url,
+        error: formatError(error)
+      });
     }
   }
 }

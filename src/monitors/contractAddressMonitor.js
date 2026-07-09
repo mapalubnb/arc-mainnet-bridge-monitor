@@ -1,4 +1,5 @@
 import { config } from "../config.js";
+import { logger } from "../logger.js";
 import { fetchText } from "../utils/http.js";
 import { sha256 } from "../utils/hash.js";
 import { compact, extractArcRpcUrls, extractEthAddresses, hasMainnetArc } from "../utils/text.js";
@@ -7,12 +8,27 @@ const unavailableText = /Mainnet addresses are not\s+yet available/i;
 
 export async function contractAddressMonitor({ state, alert }) {
   const url = config.docs.contractAddresses;
+  logger.debug("开始检查官方合约地址文档 Contract addresses", { url });
+
   const { text } = await fetchText(url);
   const hash = sha256(text);
   const oldHash = state.getHash("contract-addresses");
-  if (!oldHash) state.setHash("contract-addresses", hash);
+
+  if (!oldHash) {
+    state.setHash("contract-addresses", hash);
+    logger.info("已建立官方合约地址文档基线", {
+      monitor: "ContractAddressMonitor",
+      hash,
+      url
+    });
+  }
 
   if (oldHash && oldHash !== hash && state.shouldAlert(`contract-doc-change:${hash}`)) {
+    logger.info("官方合约地址文档发生变化，准备推送 P3 告警", {
+      oldHash,
+      newHash: hash,
+      url
+    });
     await alert.send({
       severity: "P3",
       title: "官方合约地址文档发生变化",
@@ -28,9 +44,20 @@ export async function contractAddressMonitor({ state, alert }) {
   const keywords = text.match(/(TokenMessenger|MessageTransmitter|Gateway|CCTP|USDC|Mainnet)[\s\S]{0,240}/gi) || [];
   const addresses = extractEthAddresses(text);
   const rpcUrls = extractArcRpcUrls(text);
-  if (rpcUrls.length) state.addDiscoveredRpcUrls(rpcUrls);
+
+  if (rpcUrls.length) {
+    state.addDiscoveredRpcUrls(rpcUrls);
+    logger.info("从官方合约地址文档发现 Arc RPC 候选地址", {
+      count: rpcUrls.length,
+      rpcUrls
+    });
+  }
 
   if (mainnetAvailable && state.shouldAlert(`mainnet-contracts:${sha256(keywords.join("\n") + addresses.join(","))}`)) {
+    logger.warn("官方合约地址文档出现 Arc Mainnet 合约地址信号", {
+      keywordCount: keywords.length,
+      addressCount: addresses.length
+    });
     await alert.send({
       severity: "P1",
       title: "Arc 主网合约地址可能已经发布",
@@ -40,4 +67,11 @@ export async function contractAddressMonitor({ state, alert }) {
       url
     });
   }
+
+  logger.debug("官方合约地址文档检查完成", {
+    hash,
+    mainnetAvailable,
+    unavailableTextPresent: unavailableText.test(text),
+    addressCount: addresses.length
+  });
 }

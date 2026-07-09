@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import { config } from "./config.js";
-import { logger } from "./logger.js";
+import { formatError, logger } from "./logger.js";
 import { StateStore } from "./stateStore.js";
 import { FeishuAlert } from "./alerts/feishu.js";
 import { scheduleTask } from "./utils/scheduler.js";
@@ -18,24 +18,37 @@ const alert = new FeishuAlert(config.feishuWebhookUrl);
 const context = { state, alert };
 
 async function main() {
-  logger.info("Arc 主网桥接监控启动", {
+  logger.info("Arc 主网上线与官方桥监控启动", {
+    serviceName: "arc-mainnet-bridge-monitor",
     pollRpcMs: config.pollRpcMs,
     pollDocsMs: config.pollDocsMs,
     pollNoxaMs: config.pollNoxaMs,
-    pollNpmMs: config.pollNpmMs
+    pollNpmMs: config.pollNpmMs,
+    httpTimeoutMs: config.httpTimeoutMs,
+    arcTestnetChainId: config.arcTestnetChainId,
+    extraRpcCount: config.extraRpcUrls.length,
+    feishuWebhookConfigured: Boolean(config.feishuWebhookUrl)
   });
 
   if (config.sendStartupMessage && state.shouldAlert(`startup:${new Date().toISOString().slice(0, 10)}`)) {
+    logger.info("发送启动通知卡片", {
+      channel: "飞书 Feishu",
+      reason: "SEND_STARTUP_MESSAGE=true"
+    });
     await alert.send({
       severity: "P3",
       title: "Arc 主网桥接监控已启动",
-      source: "本地监控进程",
+      source: "本地监控进程 Local Monitor",
       matched: `RPC ${config.pollRpcMs}ms；官方文档 ${config.pollDocsMs}ms；Noxa ${config.pollNoxaMs}ms；npm ${config.pollNpmMs}ms。`,
       action: "监控将自动推送 Arc 主网、官方桥、合约地址、Noxa 发射台和 SDK 变化。"
     });
   }
 
   if (config.enableTestAlert) {
+    logger.info("发送飞书测试卡片", {
+      channel: "飞书 Feishu",
+      reason: "ENABLE_TEST_ALERT=true"
+    });
     await alert.send({
       severity: "P3",
       title: "飞书测试卡片",
@@ -45,23 +58,29 @@ async function main() {
     });
   }
 
-  scheduleTask("rpcProbeMonitor", config.pollRpcMs, () => rpcProbeMonitor(context));
-  scheduleTask("bridgeSupportMonitor", config.pollDocsMs, () => bridgeSupportMonitor(context));
-  scheduleTask("contractAddressMonitor", config.pollDocsMs, () => contractAddressMonitor(context));
-  scheduleTask("docsMonitor", Math.max(config.pollDocsMs * 2, 5000), () => docsMonitor(context));
-  scheduleTask("noxaMonitor", config.pollNoxaMs, () => noxaMonitor(context));
-  scheduleTask("npmPackageMonitor", config.pollNpmMs, () => npmPackageMonitor(context));
+  scheduleTask("RPC 探测 RpcProbeMonitor", config.pollRpcMs, () => rpcProbeMonitor(context));
+  scheduleTask("官方桥支持 BridgeSupportMonitor", config.pollDocsMs, () => bridgeSupportMonitor(context));
+  scheduleTask("合约地址 ContractAddressMonitor", config.pollDocsMs, () => contractAddressMonitor(context));
+  scheduleTask("官方文档 DocsMonitor", Math.max(config.pollDocsMs * 2, 5000), () => docsMonitor(context));
+  scheduleTask("Noxa 发射台 NoxaMonitor", config.pollNoxaMs, () => noxaMonitor(context));
+  scheduleTask("npm SDK NpmPackageMonitor", config.pollNpmMs, () => npmPackageMonitor(context));
 }
 
 process.on("unhandledRejection", (error) => {
-  logger.error("未处理 Promise 异常", { error: error?.message || String(error) });
+  logger.error("未处理 Promise 异常 Unhandled Rejection", {
+    error: formatError(error)
+  });
 });
 
 process.on("uncaughtException", (error) => {
-  logger.error("未捕获异常", { error: error?.message || String(error), stack: error?.stack });
+  logger.error("未捕获异常 Uncaught Exception", {
+    error: formatError(error)
+  });
 });
 
 main().catch((error) => {
-  logger.error("启动失败", { error: error.message });
+  logger.error("服务启动失败", {
+    error: formatError(error)
+  });
   process.exitCode = 1;
 });

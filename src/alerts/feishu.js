@@ -1,5 +1,5 @@
 import { severityMeta } from "../config.js";
-import { logger } from "../logger.js";
+import { formatError, logger, maskSensitiveValue } from "../logger.js";
 import { compact } from "../utils/text.js";
 
 const clean = (value) => String(value ?? "").replace(/\|/g, "\\|").replace(/\n/g, "  \n");
@@ -11,7 +11,10 @@ export class FeishuAlert {
 
   async send(event) {
     if (!this.webhookUrl) {
-      logger.warn("未配置飞书 Webhook，跳过推送", { title: event.title });
+      logger.warn("未配置飞书 Webhook，跳过推送", {
+        title: event.title,
+        severity: event.severity
+      });
       return;
     }
 
@@ -61,15 +64,36 @@ export class FeishuAlert {
       }
     };
 
-    const response = await fetch(this.webhookUrl, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(payload)
+    logger.info("准备发送飞书告警卡片", {
+      title: event.title,
+      severity: event.severity,
+      source: event.source,
+      hasSourceUrl: Boolean(event.url),
+      webhookUrl: maskSensitiveValue(this.webhookUrl)
     });
-    const body = await response.text();
-    if (!response.ok) {
-      throw new Error(`飞书推送失败 HTTP ${response.status}: ${body}`);
+
+    try {
+      const response = await fetch(this.webhookUrl, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      const body = await response.text();
+      if (!response.ok) {
+        throw new Error(`飞书推送失败 HTTP ${response.status}: ${body.slice(0, 300)}`);
+      }
+      logger.info("飞书告警卡片发送成功", {
+        title: event.title,
+        severity: event.severity,
+        status: response.status
+      });
+    } catch (error) {
+      logger.error("飞书告警卡片发送失败", {
+        title: event.title,
+        severity: event.severity,
+        error: formatError(error)
+      });
+      throw error;
     }
-    logger.info("飞书推送成功", { title: event.title, severity: event.severity });
   }
 }
