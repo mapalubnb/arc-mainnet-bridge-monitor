@@ -25,6 +25,7 @@ async function main() {
     pollNoxaMs: config.pollNoxaMs,
     pollNpmMs: config.pollNpmMs,
     httpTimeoutMs: config.httpTimeoutMs,
+    logHeartbeatMs: config.logHeartbeatMs,
     arcTestnetChainId: config.arcTestnetChainId,
     extraRpcCount: config.extraRpcUrls.length,
     feishuWebhookConfigured: Boolean(config.feishuWebhookUrl)

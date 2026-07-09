@@ -2,6 +2,8 @@ import { config } from "../config.js";
 import { formatError, logger } from "../logger.js";
 import { rpcCall } from "../utils/http.js";
 
+const rpcHeartbeatAt = new Map();
+
 const normalizeChainId = (chainId) => {
   if (typeof chainId === "number") return String(chainId);
   if (typeof chainId === "string" && chainId.startsWith("0x")) return String(Number.parseInt(chainId, 16));
@@ -39,6 +41,20 @@ export async function rpcProbeMonitor({ state, alert }) {
         isTestnet,
         isGrowing
       });
+
+      const now = Date.now();
+      const lastHeartbeatAt = rpcHeartbeatAt.get(url) || 0;
+      if (now - lastHeartbeatAt >= config.logHeartbeatMs) {
+        rpcHeartbeatAt.set(url, now);
+        logger.info("RPC 区块高度心跳", {
+          rpcUrl: url,
+          chainId,
+          blockNumber,
+          previousBlockNumber: previous.blockNumber ?? null,
+          isTestnet,
+          isGrowing
+        });
+      }
 
       if (!isTestnet && Number.isFinite(blockNumber) && state.shouldAlert(`rpc-non-testnet:${url}:${chainId}`)) {
         logger.error("发现非测试网 Chain ID，疑似 Arc 主网 RPC", {

@@ -24,6 +24,7 @@ export const config = {
   pollNoxaMs: numberFromEnv("POLL_NOXA_MS", 3000),
   pollNpmMs: numberFromEnv("POLL_NPM_MS", 15000),
   httpTimeoutMs: numberFromEnv("HTTP_TIMEOUT_MS", 6000),
+  logHeartbeatMs: numberFromEnv("LOG_HEARTBEAT_MS", 60000),
   arcTestnetChainId: String(process.env.ARC_TESTNET_CHAIN_ID || "5042002").toLowerCase(),
   logLevel: process.env.LOG_LEVEL || "info",
   sendStartupMessage: boolFromEnv("SEND_STARTUP_MESSAGE", true),
