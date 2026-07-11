@@ -9,33 +9,28 @@ export class FeishuAlert {
     this.webhookUrl = webhookUrl;
   }
 
-  async send(event) {
-    if (!this.webhookUrl) {
-      logger.warn("未配置飞书 Webhook，跳过推送", {
-        title: event.title,
-        severity: event.severity
-      });
-      return;
-    }
-
+  buildPayload(event) {
     const meta = severityMeta[event.severity] || severityMeta.P3;
     const now = new Date().toLocaleString("zh-CN", { timeZone: "Asia/Shanghai", hour12: false });
-    const fields = [
-      ["事件等级", `${meta.emoji} ${meta.label}`],
-      ["监控来源", event.source || "未知"],
-      ["命中内容", compact(event.matched || "暂无", 520)],
-      ["建议动作", event.action || "请打开来源链接核验，确认后再执行资金操作。"],
-      ["北京时间", now]
-    ];
+    const facts = Object.entries(event.facts || {}).slice(0, 6);
 
     const elements = [
+      { tag: "div", fields: [
+        { is_short: true, text: { tag: "lark_md", content: `**等级**\n${meta.emoji} ${meta.label}` } },
+        { is_short: true, text: { tag: "lark_md", content: `**可信度**\n${clean(event.confidence || "线索")}` } },
+        { is_short: true, text: { tag: "lark_md", content: `**来源**\n${clean(event.source || "未知")}` } },
+        { is_short: true, text: { tag: "lark_md", content: `**时间**\n${now}` } }
+      ] },
+      { tag: "hr" },
       {
         tag: "div",
         text: {
           tag: "lark_md",
-          content: fields.map(([key, value]) => `**${key}：** ${clean(value)}`).join("\n")
+          content: `**信号摘要**\n${clean(compact(event.matched || "暂无", 420))}`
         }
-      }
+      },
+      ...(facts.length ? [{ tag: "div", text: { tag: "lark_md", content: `**关键数据**\n${facts.map(([k,v]) => `• ${clean(k)}：${clean(v)}`).join("\n")}` } }] : []),
+      { tag: "note", elements: [{ tag: "plain_text", content: `建议：${compact(event.action || "打开来源核验后再执行资金操作。", 260)}` }] }
     ];
 
     if (event.url) {
@@ -44,7 +39,7 @@ export class FeishuAlert {
         actions: [
           {
             tag: "button",
-            text: { tag: "plain_text", content: "打开来源" },
+            text: { tag: "plain_text", content: "查看官方来源" },
             type: "primary",
             url: event.url
           }
@@ -52,7 +47,7 @@ export class FeishuAlert {
       });
     }
 
-    const payload = {
+    return {
       msg_type: "interactive",
       card: {
         config: { wide_screen_mode: true },
@@ -63,6 +58,17 @@ export class FeishuAlert {
         elements
       }
     };
+  }
+
+  async send(event) {
+    if (!this.webhookUrl) {
+      logger.warn("未配置飞书 Webhook，跳过推送", {
+        title: event.title,
+        severity: event.severity
+      });
+      return;
+    }
+    const payload = this.buildPayload(event);
 
     logger.info("准备发送飞书告警卡片", {
       title: event.title,

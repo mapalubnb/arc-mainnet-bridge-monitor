@@ -2,7 +2,8 @@ import { config } from "../config.js";
 import { formatError, logger } from "../logger.js";
 
 export function scheduleTask(name, intervalMs, task) {
-  let running = false;
+  let timer;
+  let stopped = false;
   let runCount = 0;
   let successCount = 0;
   let failureCount = 0;
@@ -13,19 +14,8 @@ export function scheduleTask(name, intervalMs, task) {
   let lastHeartbeatAt = 0;
 
   const run = async () => {
-    if (running) {
-      skipCount += 1;
-      logger.debug("任务调度跳过：上一轮仍在执行", {
-        taskName: name,
-        intervalMs,
-        reason: "任务重入保护 Task Re-entry Guard"
-      });
-      return;
-    }
-
     const startedAt = Date.now();
     runCount += 1;
-    running = true;
 
     logger.debug("任务开始执行", {
       taskName: name,
@@ -54,7 +44,6 @@ export function scheduleTask(name, intervalMs, task) {
         error: formatError(error)
       });
     } finally {
-      running = false;
       const now = Date.now();
       if (now - lastHeartbeatAt >= config.logHeartbeatMs) {
         lastHeartbeatAt = now;
@@ -70,6 +59,10 @@ export function scheduleTask(name, intervalMs, task) {
           lastFailureAt
         });
       }
+      if (!stopped) {
+        const jitter = Math.floor(intervalMs * 0.05 * Math.random());
+        timer = setTimeout(run, intervalMs + jitter);
+      }
     }
   };
 
@@ -80,5 +73,8 @@ export function scheduleTask(name, intervalMs, task) {
   });
 
   run();
-  return setInterval(run, intervalMs);
+  return () => {
+    stopped = true;
+    clearTimeout(timer);
+  };
 }

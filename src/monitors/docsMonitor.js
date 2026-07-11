@@ -8,7 +8,10 @@ const docEntries = [
   ["bridge-doc", config.docs.bridge, "App Kit Bridge 文档"],
   ["bridge-quickstart", config.docs.bridgeQuickstart, "Bridge Quickstart 文档"],
   ["arc-llms", config.docs.arcLlms, "Arc 文档索引"],
-  ["circle-llms", config.docs.circleLlms, "Circle 文档索引"]
+  ["circle-llms", config.docs.circleLlms, "Circle 文档索引"],
+  ["cctp-chains", config.docs.cctpChains, "CCTP 支持链与域"],
+  ["cctp-contracts", config.docs.cctpContracts, "CCTP 合约地址"],
+  ["gateway-chains", config.docs.gatewayChains, "Gateway 支持链"]
 ];
 
 export async function docsMonitor({ state, alert }) {
@@ -61,7 +64,8 @@ export async function docsMonitor({ state, alert }) {
     }
 
     const mainnetMatches = text.match(/.{0,80}(Arc[_\s-]?Mainnet|Arc[\s\S]{0,40}mainnet|mainnet[\s\S]{0,40}Arc|CCTP|Gateway).{0,160}/gi) || [];
-    if (hasMainnetArc(text) && state.shouldAlert(`doc-mainnet-signal:${key}:${sha256(mainnetMatches.join("\n"))}`)) {
+    const testnetOnly = /currently available on Testnet only/i.test(text);
+    if (hasMainnetArc(text) && !testnetOnly && state.shouldAlert(`doc-mainnet-signal:${key}:${sha256(mainnetMatches.join("\n"))}`)) {
       logger.warn("官方文档出现 Arc Mainnet 信号", {
         key,
         label,
@@ -70,6 +74,7 @@ export async function docsMonitor({ state, alert }) {
       await alert.send({
         severity: "P2",
         title: `${label}出现 Arc Mainnet 信号`,
+        confidence: /cctp|gateway/.test(key) ? "官方桥证据" : "待交叉确认",
         source: label,
         matched: compact(mainnetMatches.slice(0, 5).join("\n"), 700),
         action: "与官方桥支持列表、合约地址页、RPC 探测结果交叉确认。",

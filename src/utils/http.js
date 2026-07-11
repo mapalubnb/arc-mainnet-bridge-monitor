@@ -7,10 +7,36 @@ const defaultHeaders = {
 };
 
 const byteLength = (text) => Buffer.byteLength(String(text || ""), "utf8");
+const validators = new Map();
+
+async function readLimited(response, maxBytes) {
+  const declared = Number(response.headers.get("content-length"));
+  if (Number.isFinite(declared) && declared > maxBytes) throw new Error(`响应体超过限制: ${declared} > ${maxBytes}`);
+  const reader = response.body?.getReader();
+  if (!reader) return response.text();
+  const chunks = [];
+  let size = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > maxBytes) {
+      await reader.cancel();
+      throw new Error(`响应体超过限制: > ${maxBytes}`);
+    }
+    chunks.push(value);
+  }
+  const bytes = new Uint8Array(size);
+  let offset = 0;
+  for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
+  return new TextDecoder().decode(bytes);
+}
 
 export async function fetchText(url, options = {}) {
   const timeoutMs = options.timeoutMs || config.httpTimeoutMs;
   const method = options.method || "GET";
+  const maxBytes = options.maxBytes || config.httpMaxBytes;
+  const cached = validators.get(url);
   const startedAt = Date.now();
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
@@ -24,10 +50,18 @@ export async function fetchText(url, options = {}) {
   try {
     const response = await fetch(url, {
       method,
-      headers: { ...defaultHeaders, ...(options.headers || {}) },
+      headers: {
+        ...defaultHeaders,
+        ...(cached?.etag ? { "if-none-match": cached.etag } : {}),
+        ...(cached?.lastModified ? { "if-modified-since": cached.lastModified } : {}),
+        ...(options.headers || {})
+      },
       signal: controller.signal
     });
-    const text = await response.text();
+    if (response.status === 304 && cached) {
+      return { text: cached.text, status: 304, headers: response.headers, notModified: true };
+    }
+    const text = await readLimited(response, maxBytes);
     const durationMs = Date.now() - startedAt;
 
     if (!response.ok) {
@@ -49,7 +83,12 @@ export async function fetchText(url, options = {}) {
       durationMs,
       responseBytes: byteLength(text)
     });
-    return { text, status: response.status, headers: response.headers };
+    if (method === "GET") validators.set(url, {
+      text,
+      etag: response.headers.get("etag"),
+      lastModified: response.headers.get("last-modified")
+    });
+    return { text, status: response.status, headers: response.headers, notModified: false };
   } catch (error) {
     const durationMs = Date.now() - startedAt;
     logger.warn("HTTP 请求失败", {

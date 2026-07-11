@@ -19,11 +19,14 @@ const listFromEnv = (name) =>
 
 export const config = {
   feishuWebhookUrl: process.env.FEISHU_WEBHOOK_URL || "",
-  pollRpcMs: numberFromEnv("POLL_RPC_MS", 1000),
-  pollDocsMs: numberFromEnv("POLL_DOCS_MS", 2000),
-  pollNoxaMs: numberFromEnv("POLL_NOXA_MS", 3000),
-  pollNpmMs: numberFromEnv("POLL_NPM_MS", 15000),
+  pollRpcMs: numberFromEnv("POLL_RPC_MS", 2000),
+  pollDocsMs: numberFromEnv("POLL_DOCS_MS", 15000),
+  pollNoxaMs: numberFromEnv("POLL_NOXA_MS", 30000),
+  pollNpmMs: numberFromEnv("POLL_NPM_MS", 60000),
   httpTimeoutMs: numberFromEnv("HTTP_TIMEOUT_MS", 6000),
+  httpMaxBytes: numberFromEnv("HTTP_MAX_BYTES", 2 * 1024 * 1024),
+  stateFlushMs: numberFromEnv("STATE_FLUSH_MS", 1000),
+  alertRetentionDays: numberFromEnv("ALERT_RETENTION_DAYS", 30),
   logHeartbeatMs: numberFromEnv("LOG_HEARTBEAT_MS", 60000),
   arcTestnetChainId: String(process.env.ARC_TESTNET_CHAIN_ID || "5042002").toLowerCase(),
   logLevel: process.env.LOG_LEVEL || "info",
@@ -37,7 +40,10 @@ export const config = {
     bridge: "https://docs.arc.io/app-kit/bridge.md",
     bridgeQuickstart: "https://docs.arc.io/app-kit/quickstarts/bridge-tokens-across-blockchains.md",
     arcLlms: "https://docs.arc.io/llms.txt",
-    circleLlms: "https://developers.circle.com/llms.txt"
+    circleLlms: "https://developers.circle.com/llms.txt",
+    cctpChains: "https://developers.circle.com/cctp/concepts/supported-chains-and-domains.md",
+    cctpContracts: "https://developers.circle.com/cctp/references/contract-addresses.md",
+    gatewayChains: "https://developers.circle.com/gateway/references/supported-blockchains.md"
   },
   noxaLaunchUrl: "https://fun.noxa.fi/arc/launch",
   npmPackages: ["@circle-fin/bridge-kit", "@circle-fin/app-kit"],

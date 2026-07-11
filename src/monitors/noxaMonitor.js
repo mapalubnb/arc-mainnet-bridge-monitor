@@ -14,6 +14,7 @@ export async function noxaMonitor({ state, alert }) {
   const { text: html } = await fetchText(config.noxaLaunchUrl);
   const htmlHash = sha256(html);
   const oldHtmlHash = state.getHash("noxa-html");
+  const htmlChanged = Boolean(oldHtmlHash && oldHtmlHash !== htmlHash);
 
   if (!oldHtmlHash) {
     state.setHash("noxa-html", htmlHash);
@@ -38,11 +39,19 @@ export async function noxaMonitor({ state, alert }) {
     state.setHash("noxa-html", htmlHash);
   }
 
-  const scripts = Array.from(html.matchAll(/<script[^>]+src=["']([^"']+\.js[^"']*)["']/gi)).map((match) => assetUrl(match[1]));
+  const launchOrigin = new URL(config.noxaLaunchUrl).origin;
+  const scripts = Array.from(html.matchAll(/<script[^>]+src=["']([^"']+\.js[^"']*)["']/gi))
+    .map((match) => assetUrl(match[1]))
+    .filter((url) => new URL(url).origin === launchOrigin);
   logger.debug("Noxa 页面脚本解析完成", {
     scriptCount: scripts.length,
     scripts
   });
+
+  if (!htmlChanged && oldHtmlHash) {
+    logger.debug("Noxa 页面未变化，跳过 bundle 深度扫描", { htmlHash });
+    return;
+  }
 
   for (const scriptUrl of scripts) {
     logger.debug("开始检查 Noxa 前端 Bundle", { scriptUrl });

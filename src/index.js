@@ -59,12 +59,16 @@ async function main() {
     });
   }
 
-  scheduleTask("RPC 探测 RpcProbeMonitor", config.pollRpcMs, () => rpcProbeMonitor(context));
-  scheduleTask("官方桥支持 BridgeSupportMonitor", config.pollDocsMs, () => bridgeSupportMonitor(context));
-  scheduleTask("合约地址 ContractAddressMonitor", config.pollDocsMs, () => contractAddressMonitor(context));
-  scheduleTask("官方文档 DocsMonitor", Math.max(config.pollDocsMs * 2, 5000), () => docsMonitor(context));
-  scheduleTask("Noxa 发射台 NoxaMonitor", config.pollNoxaMs, () => noxaMonitor(context));
-  scheduleTask("npm SDK NpmPackageMonitor", config.pollNpmMs, () => npmPackageMonitor(context));
+  const stopTasks = [];
+  stopTasks.push(scheduleTask("RPC 探测 RpcProbeMonitor", config.pollRpcMs, () => rpcProbeMonitor(context)));
+  stopTasks.push(scheduleTask("官方桥支持 BridgeSupportMonitor", config.pollDocsMs, () => bridgeSupportMonitor(context)));
+  stopTasks.push(scheduleTask("合约地址 ContractAddressMonitor", config.pollDocsMs, () => contractAddressMonitor(context)));
+  stopTasks.push(scheduleTask("官方文档 DocsMonitor", Math.max(config.pollDocsMs * 2, 30000), () => docsMonitor(context)));
+  stopTasks.push(scheduleTask("Noxa 发射台 NoxaMonitor", config.pollNoxaMs, () => noxaMonitor(context)));
+  stopTasks.push(scheduleTask("npm SDK NpmPackageMonitor", config.pollNpmMs, () => npmPackageMonitor(context)));
+  const shutdown = () => { stopTasks.forEach((stop) => stop()); state.close(); process.exit(0); };
+  process.once("SIGINT", shutdown);
+  process.once("SIGTERM", shutdown);
 }
 
 process.on("unhandledRejection", (error) => {

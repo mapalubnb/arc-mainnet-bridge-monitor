@@ -3,6 +3,7 @@ import { formatError, logger } from "../logger.js";
 import { rpcCall } from "../utils/http.js";
 
 const rpcHeartbeatAt = new Map();
+const growthConfirmations = new Map();
 
 const normalizeChainId = (chainId) => {
   if (typeof chainId === "number") return String(chainId);
@@ -32,6 +33,8 @@ export async function rpcProbeMonitor({ state, alert }) {
 
       const isTestnet = chainId === config.arcTestnetChainId;
       const isGrowing = Number.isFinite(previous.blockNumber) && blockNumber > previous.blockNumber;
+      const growthCount = isGrowing ? (growthConfirmations.get(url) || 0) + 1 : 0;
+      growthConfirmations.set(url, growthCount);
 
       logger.debug("RPC 探测成功", {
         rpcUrl: url,
@@ -65,7 +68,8 @@ export async function rpcProbeMonitor({ state, alert }) {
         });
         await alert.send({
           severity: "P0",
-          title: "发现疑似 Arc 主网 RPC",
+          title: "发现 Arc 非测试网 RPC 候选",
+          confidence: "待交叉确认",
           source: "RPC 探测 RpcProbe",
           matched: `RPC: ${url}\nChain ID: ${chainId}\n区块高度: ${blockNumber}\n区块增长: ${isGrowing ? "是" : "待确认"}`,
           action: "立即用官方文档、浏览器和桥支持列表交叉确认；确认后先小额 USDC 跨链。",
@@ -73,7 +77,7 @@ export async function rpcProbeMonitor({ state, alert }) {
         });
       }
 
-      if (!isTestnet && isGrowing && state.shouldAlert(`rpc-growing:${url}:${chainId}:${blockNumber}`)) {
+      if (!isTestnet && growthCount >= 2 && state.shouldAlert(`rpc-growing:${url}:${chainId}`)) {
         logger.error("疑似 Arc 主网 RPC 区块正在增长", {
           rpcUrl: url,
           chainId,
@@ -83,6 +87,8 @@ export async function rpcProbeMonitor({ state, alert }) {
         await alert.send({
           severity: "P0",
           title: "疑似 Arc 主网 RPC 区块正在增长",
+          confidence: "高度可信",
+          facts: { "Chain ID": chainId, "当前区块": blockNumber, "连续增长": `${growthCount} 轮` },
           source: "RPC 探测 RpcProbe",
           matched: `RPC: ${url}\nChain ID: ${chainId}\n上一高度: ${previous.blockNumber}\n当前高度: ${blockNumber}`,
           action: "这是最高优先级信号。马上核验官方桥是否可用，并执行小额桥接测试。",

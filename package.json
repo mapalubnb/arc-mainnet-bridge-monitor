@@ -1,12 +1,13 @@
 {
   "name": "arc-mainnet-bridge-monitor",
-  "version": "1.0.0",
-  "description": "Arc 主网上线与官方桥接秒级监控脚本，支持飞书机器人卡片告警和 PM2 常驻运行。",
+  "version": "1.1.0",
+  "description": "Arc 主网上线与官方跨链桥分层监控，支持低资源运行和飞书交互卡片告警。",
   "type": "module",
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
-    "check": "node --check src/index.js && node --check src/config.js && node --check src/logger.js && node --check src/stateStore.js && node --check src/alerts/feishu.js && node --check src/monitors/bridgeSupportMonitor.js && node --check src/monitors/contractAddressMonitor.js && node --check src/monitors/docsMonitor.js && node --check src/monitors/noxaMonitor.js && node --check src/monitors/npmPackageMonitor.js && node --check src/monitors/rpcProbeMonitor.js && node --check src/utils/hash.js && node --check src/utils/http.js && node --check src/utils/scheduler.js && node --check src/utils/text.js"
+    "check": "node --check src/index.js && node --check src/config.js && node --check src/logger.js && node --check src/stateStore.js && node --check src/alerts/feishu.js && node --check src/monitors/bridgeSupportMonitor.js && node --check src/monitors/contractAddressMonitor.js && node --check src/monitors/docsMonitor.js && node --check src/monitors/noxaMonitor.js && node --check src/monitors/npmPackageMonitor.js && node --check src/monitors/rpcProbeMonitor.js && node --check src/utils/hash.js && node --check src/utils/http.js && node --check src/utils/scheduler.js && node --check src/utils/text.js",
+    "test": "node --test"
   },
   "keywords": [
     "arc",

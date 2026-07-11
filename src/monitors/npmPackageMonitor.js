@@ -69,7 +69,7 @@ export async function npmPackageMonitor({ state, alert }) {
       });
     }
 
-    if (tarball) {
+    if (tarball && oldVersion && oldVersion !== latest) {
       try {
         logger.debug("开始抽样检查 npm tarball 内容", {
           packageName: pkg,
